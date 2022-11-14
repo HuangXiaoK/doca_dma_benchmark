@@ -2,7 +2,7 @@
 mkdir -p build
 cd build
 rm -rf *
-../cmake-3.16.8-Linux-x86_64/bin/cmake ../
+cmake -DCMAKE_BUILD_TYPE=Release ../
 mkdir -p bin
 make
 mv remote* ./bin/
