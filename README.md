@@ -4,6 +4,7 @@
 
 ## Compilation
 
+cmake minimum required VERSION 3.16
 `./build.sh`
 
 The executable files is generated in the ***. /build/bin*** directory
