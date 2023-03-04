@@ -4,6 +4,7 @@
  */
 
 #include "dma_common.h"
+DOCA_LOG_REGISTER(DMA_COMMON);
 
 doca_error_t open_local_device(struct doca_pci_bdf *pcie_addr, struct dma_state *state){
     struct doca_devinfo *queried_device = NULL;
@@ -51,11 +52,11 @@ doca_error_t open_local_device(struct doca_pci_bdf *pcie_addr, struct dma_state 
     return res;
 }
 
-doca_error_t create_core_objects(struct dma_state *state, size_t num_elements, uint32_t wq_num){
+doca_error_t create_core_objects(struct dma_state *state, size_t num_elements, uint32_t wq_depth){
     doca_error_t res;
-    res = doca_mmap_create("my_mmap", &state->mmap);
+    res = doca_mmap_create("local_mmap", &state->local_mmap);
     if(res != DOCA_SUCCESS){
-        DOCA_LOG_ERR("Unable to create mmap: %s", doca_get_error_string(res));
+        DOCA_LOG_ERR("Unable to create local mmap: %s", doca_get_error_string(res));
         return res;
     }
 
@@ -74,7 +75,7 @@ doca_error_t create_core_objects(struct dma_state *state, size_t num_elements, u
 
     state->ctx = doca_dma_as_ctx(state->dma_ctx);
 
-    res = doca_workq_create(wq_num, &state->wq);
+    res = doca_workq_create(wq_depth, &state->wq);
     if(res != DOCA_SUCCESS){
 		DOCA_LOG_ERR("Unable to create work queue: %s", doca_get_error_string(res));
     }
@@ -84,22 +85,22 @@ doca_error_t create_core_objects(struct dma_state *state, size_t num_elements, u
 doca_error_t init_core_objects(struct dma_state *state, uint32_t max_chunks){
     doca_error_t res;
 
-    res = doca_mmap_property_set(state->mmap, DOCA_MMAP_MAX_NUM_CHUNKS, 
+    res = doca_mmap_property_set(state->local_mmap, DOCA_MMAP_MAX_NUM_CHUNKS, 
                                  (const uint8_t *)&max_chunks, sizeof(max_chunks));
     if(res != DOCA_SUCCESS){
 		DOCA_LOG_ERR("Unable to set memory map nb chunks: %s", doca_get_error_string(res));
 		return res;
     }
 
-	res = doca_mmap_start(state->mmap);
+	res = doca_mmap_start(state->local_mmap);
 	if (res != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Unable to start memory map: %s", doca_get_error_string(res));
+		DOCA_LOG_ERR("Unable to start local memory map: %s", doca_get_error_string(res));
 		return res;
 	}
 
-	res = doca_mmap_dev_add(state->mmap, state->dev);
+	res = doca_mmap_dev_add(state->local_mmap, state->dev);
 	if (res != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Unable to add device to mmap: %s", doca_get_error_string(res));
+		DOCA_LOG_ERR("Unable to add device to local mmap: %s", doca_get_error_string(res));
 		return res;
 	}
 
@@ -131,21 +132,21 @@ doca_error_t init_core_objects(struct dma_state *state, uint32_t max_chunks){
 doca_error_t init_remote_core_objects(struct dma_state *state){
     doca_error_t res;
 
-    res = doca_mmap_create("my_mmap", &state->mmap);
+    res = doca_mmap_create("provide_for_remote_mmap", &state->provide_for_remote_mmap);
 	if (res != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Unable to create mmap: %s", doca_get_error_string(res));
+		DOCA_LOG_ERR("Unable to create provide_for_remote_mmap: %s", doca_get_error_string(res));
 		return res;
 	}
 
-	res = doca_mmap_start(state->mmap);
+	res = doca_mmap_start(state->provide_for_remote_mmap);
 	if (res != DOCA_SUCCESS) {
-		DOCA_LOG_ERR("Unable to start memory map: %s", doca_get_error_string(res));
+		DOCA_LOG_ERR("Unable to start provide_for_remote_mmap: %s", doca_get_error_string(res));
 		return res;
 	}
 
-	res = doca_mmap_dev_add(state->mmap, state->dev);
+	res = doca_mmap_dev_add(state->provide_for_remote_mmap, state->dev);
 	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Unable to add device to mmap: %s", doca_get_error_string(res));
+		DOCA_LOG_ERR("Unable to add device to provide_for_remote_mmap: %s", doca_get_error_string(res));
 
 	return res;
 }
@@ -160,68 +161,79 @@ doca_error_t populate_mmap(struct doca_mmap *mmap, char *buf, size_t length, siz
 	return res;
 }
 
-void cleanup_core_objects(struct dma_state *state){
+void cleanup_objects(struct dma_state *state){
 	doca_error_t res;
 
-	res = doca_ctx_workq_rm(state->ctx, state->wq);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to remove work queue from ctx: %s", doca_get_error_string(res));
+	if(state->ctx != NULL) {
+		res = doca_ctx_workq_rm(state->ctx, state->wq);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to remove work queue from ctx: %s", doca_get_error_string(res));
 
+		res = doca_ctx_stop(state->ctx);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Unable to stop DMA context: %s", doca_get_error_string(res));
 
-	res = doca_ctx_stop(state->ctx);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Unable to stop DMA context: %s", doca_get_error_string(res));
+		res = doca_ctx_dev_rm(state->ctx, state->dev);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to remove device from DMA ctx: %s", doca_get_error_string(res));
+	}
 
-	res = doca_ctx_dev_rm(state->ctx, state->dev);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to remove device from DMA ctx: %s", doca_get_error_string(res));
+	if(state->local_mmap != NULL) {
+		res = doca_mmap_dev_rm(state->local_mmap, state->dev);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to remove device from local_mmap: %s", doca_get_error_string(res));
+	}
 
-	res = doca_mmap_dev_rm(state->mmap, state->dev);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to remove device from mmap: %s", doca_get_error_string(res));
 }
 
-void destroy_core_objects(struct dma_state *state){
+void destroy_objects(struct dma_state *state){
 	doca_error_t res;
 
-	res = doca_workq_destroy(state->wq);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to destroy work queue: %s", doca_get_error_string(res));
-	state->wq = NULL;
+	if(state->wq != NULL) {
+		res = doca_workq_destroy(state->wq);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to destroy work queue: %s", doca_get_error_string(res));
+		state->wq = NULL;
+	}
 
-	res = doca_dma_destroy(state->dma_ctx);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to destroy dma: %s", doca_get_error_string(res));
-	state->dma_ctx = NULL;
-	state->ctx = NULL;
+	if(state->dma_ctx != NULL) {
+		res = doca_dma_destroy(state->dma_ctx);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to destroy dma: %s", doca_get_error_string(res));
+		state->dma_ctx = NULL;
+		state->ctx = NULL;		
+	}
 
-	res = doca_buf_inventory_destroy(state->buf_inv);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to destroy buf inventory: %s", doca_get_error_string(res));
-	state->buf_inv = NULL;
+	if(state->buf_inv != NULL) {
+		res = doca_buf_inventory_destroy(state->buf_inv);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to destroy buf inventory: %s", doca_get_error_string(res));
+		state->buf_inv = NULL;
+	}
 
-	res = doca_mmap_destroy(state->mmap);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to destroy mmap: %s", doca_get_error_string(res));
-	state->mmap = NULL;
+	if(state->local_mmap != NULL) {
+		res = doca_mmap_destroy(state->local_mmap);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to destroy local_mmap: %s", doca_get_error_string(res));
+		state->local_mmap = NULL;
+	}
+
+	if(state->remote_mmap != NULL) {
+		res = doca_mmap_destroy(state->remote_mmap);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to destroy remote_mmap: %s", doca_get_error_string(res));
+		state->remote_mmap = NULL;
+	}
+
+	if(state->provide_for_remote_mmap != NULL) {
+		res = doca_mmap_destroy(state->provide_for_remote_mmap);
+		if (res != DOCA_SUCCESS)
+			DOCA_LOG_ERR("Failed to destroy provide_for_remote_mmap: %s", doca_get_error_string(res));
+		state->provide_for_remote_mmap = NULL;
+	}
 
 	res = doca_dev_close(state->dev);
 	if (res != DOCA_SUCCESS)
 		DOCA_LOG_ERR("Failed to close device: %s", doca_get_error_string(res));
 	state->dev = NULL;
 }
-
-void destroy_remote_core_objects(struct dma_state *state){
-	doca_error_t res;
-
-	res = doca_mmap_destroy(state->mmap);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to destroy mmap: %s", doca_get_error_string(res));
-	state->mmap = NULL;
-
-	res = doca_dev_close(state->dev);
-	if (res != DOCA_SUCCESS)
-		DOCA_LOG_ERR("Failed to close device: %s", doca_get_error_string(res));
-	state->dev = NULL;
-}
-

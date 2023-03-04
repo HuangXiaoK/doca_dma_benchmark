@@ -6,46 +6,59 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "dma_communication.h"
 #include "dma_parameters.h"
 #include "dma_common.h"
 
+DOCA_LOG_REGISTER(REMOTE_DMA_WRITE_BW);
+
 int main(int argc, char *argv[]) {
 
-    struct dma_parameters dma_param;
+    struct bw_parameters *bw_param = NULL;
+    pthread_t *tid = NULL;
+    struct dma_parameters dma_param = {0};
     dma_param.is_local = 0;
-    dma_param.dma_type = READ;
+    dma_param.dma_type = WRITE;
     dma_param.test_type = BW;
     parse_args(&dma_param, argc, argv);
     print_dma_parameters(&dma_param);
 
-    void *src_buf = malloc(dma_param.size);
-    // void *dst_buf = malloc(dma_param.size);
+    size_t thread_num = dma_param.thread_num;
+    ALLOCATE(bw_param ,struct bw_parameters ,thread_num);
+    ALLOCATE(tid ,pthread_t ,thread_num);
 
-    doca_error_t res;
+    for (size_t i = 0; i < thread_num; i++) {
+        bw_param[i].id = i;
+        bw_param[i].dma_params = dma_param;
+		bw_param[i].dma_params.port += i;
+        if(pthread_create(&tid[i], NULL, run_remote_dma_bw, &bw_param[i]) < 0) {
+            DOCA_LOG_ERR("Thread create err.");
+        }
+    }
 
-    if(dma_param.is_server) {
-		res = dma_remote_copy(&dma_param, src_buf, dma_param.size);
-    }
-    else {
-		res = remote_dma_prepare(&dma_param, src_buf, dma_param.size);
+    for (size_t i = 0; i < thread_num; i++) {
+        pthread_join(tid[i], NULL);
     }
 
-    if (res != DOCA_SUCCESS){
-      DOCA_LOG_ERR("Unable to remote dma: %s", doca_get_error_string(res));
+    doca_error_t res = DOCA_SUCCESS;
+    for (size_t i = 0; i < thread_num; i++) {
+        if (bw_param[i].res != DOCA_SUCCESS) {
+            res = bw_param[i].res;
+            printf("BW error\n");
+            break;
+        }
     }
-    else {
+
+    if(res == DOCA_SUCCESS) {
 		if(dma_param.is_server) {
-			print_report_bw(&dma_param);
+			print_report_bw(bw_param);
 		}
     }
 
-    if(dma_param.tposted != NULL) {
-      	free(dma_param.tposted);
-    }
-    free(src_buf);
+    free(bw_param);
+    free(tid);
 
     return 0;
-
 }

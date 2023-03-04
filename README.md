@@ -2,6 +2,8 @@
 
 # A simple implementation of DOCA DMA benchmark
 
+DOCA version is 1.4
+
 ## Compilation
 
 **cmake minimum required VERSION 3.16**
@@ -24,44 +26,26 @@ It is written with reference to *RDMA perftest*, so it generates a lot of execut
 Options:
  -h <help>            Help information
  -s <size>            The size of message (default 1024)
- -t <iterations>      The number of iterations (default 100000)
+ -i <iterations>      The number of iterations (default 100000)
  -w <warn_up>         The number of preheats (default 10000)
                       DMA seems to have the problem of cold start
  -g <page_size>       Page size alignment of the provided memory range. 
                       Must be >= 4096 and a power of 2. (default 4096)
- -q <wq_num>          The num of work queue (default 1)
+ -q <wq_depth>        The depth of work queue (default 1)
  -e <element_num>     Initial number of elements in the inventory (default 2)
  -c <max_chunks>      The new value of the property. (default 2)
- -d <pcie_device>     The address of DMA device (default af:00.1) 
+ -d <pcie_device>     The address of DMA device (default af:00.1)
+ -t <threads>         This parameter is only valid for bw test. 
+                      For remote, server and clientmust have the same value. 
+                      The number of DMA threads (default 1)
+ -b <bind_core>       This parameter is only valid for bw test. 
+                      Whether the DMA thread of bw is bound to the core (default 1)
+                      If equal to 1 bind, otherwise not bind
 ```
 
 Local dma only start one side, as an example:
 
-`./local_dma_read_lat -s 1024 -t 10000 -d af:00.1`
-
-The results are as follows: 
-
-```
-pcie_addr is af:00.1
-Size is : 1024 
-Iterations is :         10000 
-Preheats is :           10000 
-Page size is :          4096 
-Work number is :        1 
-Num elements is :       2 
-Max chunks is :         2 
-Pcie addr bus is :      af 
-Pcie addr device is :   0 
-Pcie addr function is : 1 
-Local DMA
-Do DMA read
-Conflicting CPU frequency values detected: 1000.038000 != 3172.045000. CPU Frequency is not max.
-Min  latency is : 2.300234 us
-P50  latency is : 2.389809 us
-Avg  latency is : 2.415862 us
-P99  latency is : 2.507212 us
-P999 latency is : 11.784680 us
-```
+`./local_dma_read_lat -s 1024 -i 10000 -d af:00.1`
 
 **Remote DMA**
 
@@ -73,52 +57,29 @@ Options:
  -p <port>        Port. (default 10086)
 
  -s <size>            The size of message (default 1024)
- -t <iterations>      The number of iterations (default 100000)
+ -i <iterations>      The number of iterations (default 100000)
  -w <warn_up>         The number of preheats (default 10000)
                       DMA seems to have the problem of cold start
  -g <page_size>       Page size alignment of the provided memory range. 
                       Must be >= 4096 and a power of 2. (default 4096)
- -q <wq_num>          The num of work queue (default 1)
+ -q <wq_depth>        The depth of work queue (default 1)
  -e <element_num>     Initial number of elements in the inventory (default 2)
  -c <max_chunks>      The new value of the property. (default 2)
  -d <pcie_device>     The address of DMA device (default af:00.1)
+ -t <threads>         This parameter is only valid for bw test. 
+                      For remote, server and clientmust have the same value. 
+                      The number of DMA threads (default 1)
+ -b <bind_core>       This parameter is only valid for bw test. 
+                      Whether the DMA thread of bw is bound to the core (default 1)
+                      If equal to 1 bind, otherwise not bind
 ```
 
 Remote dma need start the server first, then start the client, as an example:
 
 ```
-server side :  ./remote_dma_write_lat -p 10000 -s 1024 -t 10000 -d af:00.0
+server side :  ./remote_dma_write_lat -p 10000 -s 1024 -i 100000 -d af:00.0
 
-client side :  ./remote_dma_write_lat -a 10.10.10.211 -p 10000 -s 1024 -t 10000 -d af:00.1
-```
-
-The result is output on the server side, as follows:
-
-```
-pcie_addr is af:00.0
-Size is : 1024 
-Iterations is :         10000 
-Preheats is :           10000 
-Page size is :          4096 
-Work number is :        1 
-Num elements is :       2 
-Max chunks is :         2 
-Pcie addr bus is :      af 
-Pcie addr device is :   0 
-Pcie addr function is : 0 
-Remote DMA
-This is DMA Server
-IP is : 10.10.10.211 
-Port is : 10000 
-Do DMA write
-[18:15:16:017807][DOCA][INF][DMA_COMMON:115]: Waiting for remote node to send exported data
-[18:15:17:738577][DOCA][INF][DMA_COMMON:139]: Exported data was received
-Conflicting CPU frequency values detected: 1000.059000 != 3196.232000. CPU Frequency is not max.
-Min  latency is : 2.337615 us
-P50  latency is : 2.452408 us
-Avg  latency is : 2.506266 us
-P99  latency is : 2.842881 us
-P999 latency is : 11.086277 us
+client side :  ./remote_dma_write_lat -a 10.10.10.211 -p 10000 -s 1024 -i 100000 -d af:00.1
 ```
 
 ## **Attention**
@@ -129,3 +90,19 @@ P999 latency is : 11.086277 us
 4. The parameters *element_num, max_chunks*, etc. are required to initialize the DMA resources and can be used as default values.
 5. According to personal experience, the error *"doca_mmap_create_from_export false: Unknown error"* is caused by 1. the pcie device settings are the same on both sides of the remote dma; 2. the client side may be disconnected.
 
+## **Error**
+1. There will be an error in the bw test of multi-threading, which seems to be a problem with DOCA itself.
+```
+[18:21:33:138828][DOCA][ERR][DOCA_DMA:717]: DMA work queue context unable to create QP. err=2
+[18:21:33:138885][DOCA][ERR][DOCA_DMA:717]: DMA work queue context unable to create QP. err=2
+[18:21:33:138949][DOCA][ERR][DOCA_DMA:717]: DMA work queue context unable to create QP. err=22
+[18:21:33:139168][DOCA][ERR][DOCA_DMA:938]: Unable to create DMA work queue context
+[18:21:33:139051][DOCA][ERR][DOCA_DMA:938]: Unable to create DMA work queue context
+[18:21:33:139332][DOCA][ERR][DMA_COMMON:127]: Unable to register work queue with context: Memory allocation failure
+[18:21:33:139295][DOCA][ERR][DMA_COMMON:127]: Unable to register work queue with context: Memory allocation failure
+[18:21:33:139371][DOCA][ERR][DMA_COMMUNICATION:975]: init_core_objects false[18:21:33:139407][DOCA][ERR][DMA_COMMUNICATION:975]: init_core_objects false
+```
+ The current number of threads cannot be too large.
+ In the bw test, each thread creates a wq. 
+2. In the remote write lat test, the program may be stuck due to dma write failure.
+ The reason for the above phenomenon is that the dma operation is performed at an unknown remote address, but there is no problem in sending and receiving the information of remote dma mmap, which is very strange.

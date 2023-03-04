@@ -11,34 +11,33 @@
 #include "dma_parameters.h"
 #include "dma_common.h"
 
+DOCA_LOG_REGISTER(LOCAL_DMA_READ_LAT);
+
 int main(int argc, char *argv[]) {
 
-    struct dma_parameters dma_param;
+    struct dma_parameters dma_param = {0};
+    doca_error_t res;
     dma_param.is_local = 1;
     dma_param.dma_type = READ;
     dma_param.test_type = LAT;
     parse_args(&dma_param, argc, argv);
     print_dma_parameters(&dma_param);
 
-    void *src_buf = malloc(dma_param.size);
-    void *dst_buf = malloc(dma_param.size);
-
-    doca_error_t res;
-    res = dma_local_copy(&dma_param, dst_buf, src_buf, dma_param.size);
+    res = run_local_dma_read_lat(&dma_param);
 
     if (res != DOCA_SUCCESS){
-    	DOCA_LOG_ERR("Unable to dma_local_copy: %s", doca_get_error_string(res));
+    	DOCA_LOG_ERR("Unable to local dma: %s", doca_get_error_string(res));
     }
     else {
-    	print_report_lat(&dma_param);
+		if(dma_param.is_server) {
+			print_report_lat(&dma_param);
+		}
     }
 
     if(dma_param.tposted != NULL) {
-    	free(dma_param.tposted);
+      	free(dma_param.tposted);
     }
-    free(src_buf);
-    free(dst_buf);
-
+	
     return 0;
 
 }

@@ -24,6 +24,7 @@ endif ()
 message(STATUS "PKG_CONFIG_PATH is $ENV{PKG_CONFIG_PATH}")
 
 find_package(PkgConfig REQUIRED)
+find_package(Threads REQUIRED)
 pkg_check_modules(DOCA_DMA REQUIRED doca-dma)
 pkg_check_modules(DOCA_COMMON REQUIRED doca-common)
 pkg_check_modules(JSON-C REQUIRED json-c)
@@ -47,9 +48,13 @@ set(dma_common_file dma_common.c dma_communication.c dma_parameters.c get_clock.
 set(exec_prog 
     local_dma_read_lat local_dma_read_bw local_dma_write_lat local_dma_write_bw
     remote_dma_read_lat remote_dma_read_bw remote_dma_write_lat remote_dma_write_bw)
+# set(exec_prog 
+#     remote_dma_read_lat remote_dma_write_lat local_dma_read_lat local_dma_write_lat)
 
 message(STATUS "dma_common_file is ${dma_common_file}")
 message(STATUS "exec_prog is ${exec_prog}")
+message(STATUS "pthread is ${CMAKE_THREAD_LIBS_INIT}")
+
 
 foreach(prog ${exec_prog})
 	message(STATUS "prog is ${prog}")
@@ -66,5 +71,6 @@ foreach(prog ${exec_prog})
 						  ${GFLAGS_LIBRARIES}
 						  ${DOCA_DMA_LIBRARIES}
 						  ${DOCA_COMMON_LIBRARIES}
-						  ${JSON-C_LIBRARIES})
+						  ${JSON-C_LIBRARIES}
+						  ${CMAKE_THREAD_LIBS_INIT})
 endforeach(prog ${exec_prog})

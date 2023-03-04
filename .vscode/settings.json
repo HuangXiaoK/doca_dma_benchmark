@@ -1,0 +1,27 @@
+{
+    "files.associations": {
+        "string_view": "c",
+        "tuple": "c",
+        "array": "c",
+        "hash_map": "c",
+        "hash_set": "c",
+        "bitset": "c",
+        "initializer_list": "c",
+        "utility": "c",
+        "dma_communication.h": "c",
+        "dma_parameters.h": "c",
+        "string.h": "c",
+        "dma_common.h": "c",
+        "doca_buf.h": "c",
+        "doca_error.h": "c",
+        "doca_mmap.h": "c",
+        "unistd.h": "c",
+        "thread": "c",
+        "*.ipp": "c",
+        "pthread.h": "c",
+        "socket.h": "c",
+        "doca_dma.h": "c",
+        "numeric": "c"
+    },
+    "C_Cpp.errorSquiggles": "Enabled"
+}
