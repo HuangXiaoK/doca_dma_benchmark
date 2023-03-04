@@ -84,11 +84,10 @@ client side :  ./remote_dma_write_lat -a 10.10.10.211 -p 10000 -s 1024 -i 100000
 
 ## **Attention**
 
-1. For now, benchmark only supports single-threaded.
-2. ***No DOCA DMA non-blocking interface has been found***, so the results of the BW test are poor and similar to the results of the (1 second / time per DMA operation).
-3. It was found that the DMA ***had a cold start,*** so the "-w" parameter was set and the real test was run after a certain number of dma operations. You can also set the "-t" parameter to a large value to avoid this problem.
-4. The parameters *element_num, max_chunks*, etc. are required to initialize the DMA resources and can be used as default values.
-5. According to personal experience, the error *"doca_mmap_create_from_export false: Unknown error"* is caused by 1. the pcie device settings are the same on both sides of the remote dma; 2. the client side may be disconnected.
+1. ***No DOCA DMA non-blocking interface has been found***, so the results of the BW test are poor and similar to the results of the (1 second / time per DMA operation).
+2. It was found that the DMA ***had a cold start,*** so the "-w" parameter was set and the real test was run after a certain number of dma operations. You can also set the "-i" parameter to a large value to avoid this problem.
+3. The parameters *element_num, max_chunks*, etc. are required to initialize the DMA resources and can be used as default values.
+4. According to personal experience, the error *"doca_mmap_create_from_export false: Unknown error"* is caused by 1. the pcie device settings are the same on both sides of the remote dma; 2. the client side may be disconnected.
 
 ## **Error**
 1. There will be an error in the bw test of multi-threading, which seems to be a problem with DOCA itself.
